@@ -8,4 +8,4 @@ all:
 	 	-lopencv_photo -lopencv_stitching -lopencv_superres -lopencv_ts -lopencv_video -lopencv_videostab \
 	 	main.cpp
 lin:
-	g++ main.cpp -g -std=c++11 -lopencv_core -lopencv_highgui -lopencv_videoio -lopencv_imgproc 
+	g++ main.cpp -std=c++11 -lopencv_core -lopencv_highgui -lopencv_videoio 
