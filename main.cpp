@@ -6,6 +6,7 @@
 #include<stdio.h>
 #include"helpers.h"
 #include <unistd.h>
+#include "selectRoi.h"
 
 using namespace cv;
 using namespace std;
@@ -13,6 +14,7 @@ using namespace std;
  float approx = 0;
 
  Mat f ;
+ Rect roi ;
 
 void collector_fastest(vector<Mat> *buffer, int buffLen, VideoCapture *capture, int *pos){
 
@@ -46,6 +48,8 @@ void collector(Mat *buffer, int buffLen, VideoCapture *capture, int *pos, Mat *f
     // *capture >> *frame ;
     cvtColor(*frame, gray, COLOR_BGR2GRAY);
 
+    gray = gray(roi).clone();
+
     newpos = i%buffLen;
     uchar *arr = gray.data ;
 
@@ -72,7 +76,7 @@ float getDominantFreqs(Mat &timeSeries, float low, float high, int Fs, Point *pt
     
     float amp ,x,y, curMax = 0, freqMax;
 
-    for(int j=20000; j < timeSeries.rows; j++){
+    for(int j=0; j < timeSeries.rows; j++){
 
      if (low_ind <= 1)
        low_ind = 2 ;
@@ -179,7 +183,7 @@ void processor(Mat *buffer, int buffLen, int *pos, float *ans, Point *pt, int wi
      Mat subSamp ; 
 
      int st, end, subLen = 200 ;
-     int Fs = 24 ;
+     int Fs = 16 ;
 
   while(1){
 
@@ -190,10 +194,18 @@ void processor(Mat *buffer, int buffLen, int *pos, float *ans, Point *pt, int wi
     if (st == end)
       end ++;
 
+
     if(end < 10)
       continue ;
 
     subSamp = (*buffer)(Range::all(), Range(st, end)) ;
+
+    if(end - subLen < 0){
+    
+      Mat prevMat = (*buffer)(Range::all(), Range(buffer->cols + end - subLen, buffer->cols)) ; 
+      hconcat(subSamp, prevMat, subSamp); 
+
+    }
 
     subSamp.convertTo(subSamp, CV_64F) ;
     *ans = getDominantFreqs(subSamp, 0.1, 0.9, Fs, pt, width) ;
@@ -207,8 +219,8 @@ void processor(Mat *buffer, int buffLen, int *pos, float *ans, Point *pt, int wi
     int range[2] = {0, subLen};
     Mat plotted = plotGraph( numbers , range);
 
-    // imshow("plot" , plotted);
-    // waitKey(1);
+    imshow("plot" , plotted);
+    waitKey(1);
     approx = zeroCrossFreq(ys , Fs, (*ans) / 60.0) * 60.0;
 
     trace(*ans) ;
@@ -233,9 +245,12 @@ void MyFilledCircle( Mat &img, Point center )
 }
 int main(int arlen, char** argv)
 {
-      // VideoCapture cap(0); // open the default camera
+      VideoCapture cap(0); // open the default camera
     
-    VideoCapture cap(argv[1]); // open the default camera
+    // VideoCapture cap(argv[1]); // open the default camera
+
+    cap >> f ;
+    roi = selectRoi(f);
 
     if(!cap.isOpened())  // check if we succeeded
         return -1;
@@ -244,12 +259,13 @@ int main(int arlen, char** argv)
 
     int buffLen = 1000;
 
-    int width = cap.get(CV_CAP_PROP_FRAME_WIDTH);
-    int height = cap.get(CV_CAP_PROP_FRAME_HEIGHT);
+    // int width = cap.get(CV_CAP_PROP_FRAME_WIDTH);
+    // int height = cap.get(CV_CAP_PROP_FRAME_HEIGHT);
+
+    int width = roi.width;
+    int height = roi.height;
 
     Mat buffer(width*height, buffLen , CV_8U);
-    cout << sizeof(buffer) << "\n";
-    // vector<Mat> buffer;
 
     int pos  = 0 ;
     float ans = 30 ;
@@ -288,8 +304,10 @@ int main(int arlen, char** argv)
         Point textOrg((frame.cols - textSize.width)/2 - 100,
               (frame.rows + textSize.height)/2 - 100);
         putText(frame, text, textOrg, fontFace, fontScale, Scalar::all(255), thickness, 1);
-        MyFilledCircle(frame, osciPoint);
+        MyFilledCircle(frame, osciPoint + Point(roi.x,roi.y) );
+        rectangle(frame, roi , CV_RGB(255, 0, 0), 3, 8, 0);
         try{
+
           imshow("edges", frame);
         }catch(exception &e){
         }
